@@ -23,52 +23,187 @@ collection = client.get_collection(
     "resourceplus"
 )
 
+def build_search_query(question, history=[]):
 
-def ask_resourceplus(question):
+    q = question.lower()
 
-    results = collection.query(
-        query_texts=[question],
-        n_results=3
+    pronouns = [
+        "he",
+        "she",
+        "him",
+        "her",
+        "it",
+        "they",
+        "them"
+    ]
+
+    if any(word in q for word in pronouns):
+
+        last_topic = ""
+
+        for item in reversed(history):
+
+            if item["sender"] != "user":
+                continue
+
+            text = item["text"]
+
+            if text.lower() == question.lower():
+                continue
+
+            last_topic = text
+            break
+
+        if last_topic:
+            return f"{last_topic} {question}"
+
+    return question
+
+def ask_resourceplus(question,history=[]):
+    
+    print("\nQUESTION:", question)
+    
+    search_query = build_search_query(
+        question,
+        history
     )
 
+    print("SEARCH QUERY:", search_query)
+
+    results = collection.query(
+        query_texts=[search_query],
+        n_results=8
+    )
+    print(results["distances"])
+    print(
+        "\nTOP DOCUMENTS:",
+        len(results["documents"][0])
+    )
+
+   
+    if not results["documents"][0]:
+        return {
+            "answer":
+            "I could not find that information in the knowledge base.",
+            "sources": []
+        }
+   
     context = ""
+    conversation_context = ""
 
     sources = []
 
-    for i in range(len(results["documents"][0])):
+    best_distance = results["distances"][0][0]
 
-        context += (
-            results["documents"][0][i]
-            + "\n\n"
+    for i in range(len(results["documents"][0])):
+        print(
+            f"DISTANCE: {results['distances'][0][i]:.4f}",
+            "| SOURCE:",
+            results["metadatas"][0][i]["title"]
         )
+
+        distance = results["distances"][0][i]
+
+        if distance > best_distance + 0.25:
+            continue
+
+        context += results["documents"][0][i] + "\n\n"
 
         sources.append(
             results["metadatas"][0][i]["title"]
         )
+    print("\nused source:")
+    for source in sources:
+        print(source)
+
+    for item in history[-10:]:
+
+        conversation_context += (
+            f"{item['sender']}: "
+            f"{item['text']}\n"
+        )
 
     prompt = f"""
-You are a ResourcePlus knowledge-base assistant.
+    You are the official ResourcePlus AI Assistant.
 
-Answer ONLY using the supplied context.
+    Use the retrieved knowledge as the primary source of truth.
 
-If the answer is not found in the context,
-say:
-"I could not find that information in the knowledge base."
+    You may use the previous conversation to understand references such as:
 
-CONTEXT:
+    - he
+    - she
+    - him
+    - her
+    - it
+    - they
+    - this
+    - that
 
-{context}
+    If the current question refers to something discussed earlier,
+    use the conversation history to determine the subject.
 
-QUESTION:
+    Answer ONLY using the retrieved knowledge.
 
-{question}
-"""
+    
 
-    response = model.generate_content(
-        prompt
-    )
+    If the context contains related information    
+    provide the closest helpful answer .
+
+    Only say
+    "I could not find that information in the knowledge base."
+    when the context is completely unrelated.
+
+    ----------------------------------
+
+    RETRIEVED KNOWLEDGE:
+
+    {context}
+
+    ----------------------------------
+
+    PREVIOUS CONVERSATION:
+
+    {conversation_context}
+
+    ----------------------------------
+
+    CURRENT QUESTION:
+
+    {question}
+
+    ----------------------------------
+
+    Formatting Rules:
+
+    - Use headings.
+    - Use bullet points.
+    - Use numbered steps for procedures.
+    - Highlight important terms in markdown bold.
+    - Keep answers concise.
+
+    """
+    print("\n========== CONTEXT ==========")
+    print(context)
+    print("=============================\n")
+
+    try:
+
+        response = model.generate_content(
+            prompt
+        )
+
+        answer = response.text
+
+    except Exception as e:
+
+        print("Gemini Error:", e)
+
+        answer = (
+            "AI service is temporarily unavailable. "
+            "Please try again later."
+        )
 
     return {
-        "answer": response.text,
-        "sources": sources
+        "answer": answer,
+        "sources": []
     }

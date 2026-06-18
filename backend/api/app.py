@@ -3,9 +3,18 @@ import chromadb
 from fastapi import FastAPI
 from pydantic import BaseModel
 from backend.api.rag_service import ask_resourceplus
+from fastapi.middleware.cors import CORSMiddleware
+from typing import List
 
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def home():
@@ -51,12 +60,14 @@ def search(q: str):
 
 class Question(BaseModel):
     question: str
+    history: List = []
 
 @app.post("/ask")
 def ask(data: Question):
 
     result = ask_resourceplus(
-        data.question
+        data.question,
+        data.history
     )
 
     return result

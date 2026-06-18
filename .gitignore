@@ -5,3 +5,12 @@ __pycache__/
 .vscode/
 .idea/
 *.db
+# Node
+node_modules/
+dist/
+
+# Chroma
+backend/rag/chroma_db/
+
+# Python virtual env
+venv/
