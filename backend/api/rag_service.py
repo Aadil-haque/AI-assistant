@@ -1,101 +1,117 @@
 import chromadb
 import os
 from dotenv import load_dotenv
-import google.generativeai as genai
-
-load_dotenv()
-
-# Gemini configuration
-genai.configure(
-    api_key=os.getenv("GEMINI_API_KEY")
+#import google.generativeai as genai
+from groq import Groq
+from backend.api.search_query import build_search_query
+from backend.api.prompt_builder import build_prompt
+from backend.api.history_selector import select_relevant_history
+from backend.database.chat_history import (
+    save_message,
+    get_history
 )
 
-model = genai.GenerativeModel(
-    "gemini-2.5-flash"
+load_dotenv()
+#----------------------------------------------
+# # Gemini
+# genai.configure(
+#     api_key=os.getenv("GEMINI_API_KEY")
+# )
+
+# model = genai.GenerativeModel(
+#     "gemini-2.5-flash"
+# )
+#----------------------------------------------
+
+groq_client = Groq(
+    api_key=os.getenv("GROQ_API_KEY")
 )
 
 # ChromaDB
-client = chromadb.PersistentClient(
+chroma_client = chromadb.PersistentClient(
     path="backend/rag/chroma_db"
 )
 
-collection = client.get_collection(
+collection = chroma_client.get_collection(
     "resourceplus"
 )
 
-def build_search_query(question, history=[]):
+# Session Cache
+session_cache = {}
 
-    q = question.lower()
 
-    pronouns = [
-        "he",
-        "she",
-        "him",
-        "her",
-        "it",
-        "they",
-        "them"
-    ]
+def ask_resourceplus(question, history=[],session_id="default"):
 
-    if any(word in q for word in pronouns):
+    print("=" * 50)
+    print("SESSION:", session_id)
+    print("=" * 50)
 
-        last_topic = ""
+    if session_id not in session_cache:
 
-        for item in reversed(history):
-
-            if item["sender"] != "user":
-                continue
-
-            text = item["text"]
-
-            if text.lower() == question.lower():
-                continue
-
-            last_topic = text
-            break
-
-        if last_topic:
-            return f"{last_topic} {question}"
-
-    return question
-
-def ask_resourceplus(question,history=[]):
+        session_cache[session_id] = {
+            "last_context": "",
+            "last_sources": [],
+            "last_question": ""
+        }
     
-    print("\nQUESTION:", question)
+    context_cache = session_cache[session_id]
     
-    search_query = build_search_query(
+    history = get_history(session_id)
+    
+
+    selected_history = select_relevant_history(
         question,
         history
     )
 
+    print("\nQUESTION:", question)
+
+    search_query = build_search_query(
+        question,
+        selected_history
+    )
+
     print("SEARCH QUERY:", search_query)
+
+
+    context = ""
+    sources = []  
+
+ 
+    print("USING VECTOR SEARCH")
 
     results = collection.query(
         query_texts=[search_query],
         n_results=8
     )
+
     print(results["distances"])
+
     print(
         "\nTOP DOCUMENTS:",
         len(results["documents"][0])
     )
 
-   
     if not results["documents"][0]:
         return {
             "answer":
             "I could not find that information in the knowledge base.",
             "sources": []
         }
-   
-    context = ""
-    conversation_context = ""
-
-    sources = []
 
     best_distance = results["distances"][0][0]
+    print("BEST DISTANCE:", best_distance)
+    # Skip extremely unrelated searches
+    MAX_DISTANCE = 1.85
+
+    if best_distance > MAX_DISTANCE:
+        return {
+            "answer": "This question is outside the ResourcePlus knowledge domain."
+        }
+
 
     for i in range(len(results["documents"][0])):
+
         print(
             f"DISTANCE: {results['distances'][0][i]:.4f}",
             "| SOURCE:",
@@ -104,106 +120,89 @@ def ask_resourceplus(question,history=[]):
 
         distance = results["distances"][0][i]
 
-        if distance > best_distance + 0.25:
+        if distance > best_distance + 0.20:
             continue
 
-        context += results["documents"][0][i] + "\n\n"
+        context += (
+            results["documents"][0][i]
+            + "\n\n"
+        )
 
         sources.append(
             results["metadatas"][0][i]["title"]
         )
-    print("\nused source:")
+
+    print("\nUsed Sources:")
+
     for source in sources:
         print(source)
 
-    for item in history[-10:]:
 
-        conversation_context += (
-            f"{item['sender']}: "
-            f"{item['text']}\n"
-        )
 
-    prompt = f"""
-    You are the official ResourcePlus AI Assistant.
+    # Save Context To Cache
 
-    Use the retrieved knowledge as the primary source of truth.
+    context_cache["last_context"] = context
+    context_cache["last_sources"] = sources
+    context_cache["last_question"] = question
 
-    You may use the previous conversation to understand references such as:
+    # =====================================
+    # Conversation History
+    # =====================================
 
-    - he
-    - she
-    - him
-    - her
-    - it
-    - they
-    - this
-    - that
+    conversation_context =selected_history
 
-    If the current question refers to something discussed earlier,
-    use the conversation history to determine the subject.
 
-    Answer ONLY using the retrieved knowledge.
+    # =====================================
+    # Prompt
+    # =====================================
+
+    prompt = build_prompt(
+        question=question,
+        context=context,
+        conversation_context=conversation_context
+    )
+
+
+    print("\n========== CONTEXT ==========")
 
     
-
-    If the context contains related information    
-    provide the closest helpful answer .
-
-    Only say
-    "I could not find that information in the knowledge base."
-    when the context is completely unrelated.
-
-    ----------------------------------
-
-    RETRIEVED KNOWLEDGE:
-
-    {context}
-
-    ----------------------------------
-
-    PREVIOUS CONVERSATION:
-
-    {conversation_context}
-
-    ----------------------------------
-
-    CURRENT QUESTION:
-
-    {question}
-
-    ----------------------------------
-
-    Formatting Rules:
-
-    - Use headings.
-    - Use bullet points.
-    - Use numbered steps for procedures.
-    - Highlight important terms in markdown bold.
-    - Keep answers concise.
-
-    """
-    print("\n========== CONTEXT ==========")
     print(context)
+
     print("=============================\n")
 
     try:
 
-        response = model.generate_content(
-            prompt
+        response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0
         )
 
-        answer = response.text
-
+        answer = response.choices[0].message.content.strip()
+     
     except Exception as e:
 
-        print("Gemini Error:", e)
+        print("Error:", e)
+
+        
 
         answer = (
             "AI service is temporarily unavailable. "
             "Please try again later."
         )
+    
+    save_message(
+        session_id=session_id,
+        sender="assistant",
+        text=answer
+    )
 
     return {
         "answer": answer,
-        "sources": []
+        "sources": sources 
     }

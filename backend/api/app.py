@@ -5,6 +5,12 @@ from pydantic import BaseModel
 from backend.api.rag_service import ask_resourceplus
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
+from backend.database.chat_history import (
+    save_message,
+    get_history,
+    get_conversations,
+    get_conversation,
+)
 
 
 app = FastAPI()
@@ -61,13 +67,24 @@ def search(q: str):
 class Question(BaseModel):
     question: str
     history: List = []
+    session_id: str = "default"
 
 @app.post("/ask")
 def ask(data: Question):
 
     result = ask_resourceplus(
         data.question,
-        data.history
+        data.history,
+        data.session_id
     )
 
     return result
+
+@app.get("/conversations")
+def conversations():
+    return get_conversations()
+
+
+@app.get("/conversation/{session_id}")
+def conversation(session_id: str):
+    return get_conversation(session_id)

@@ -17,6 +17,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const chatEndRef = useRef(null);
+  // One session ID per browser tab
+  const sessionId = useRef(crypto.randomUUID());
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({
@@ -91,7 +93,8 @@ function App() {
         "http://127.0.0.1:8000/ask",
         {
           question: currentQuestion,
-          history: messages
+          history: messages,
+          session_id: sessionId.current
         }
       );
 
