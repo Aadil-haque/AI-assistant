@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import axios from "axios";
+
 import "./App.css";
 import ReactMarkdown from "react-markdown";
 import {
@@ -9,6 +9,14 @@ import {
   User
 } from "lucide-react";
 import { motion } from "framer-motion";
+import Header from "./components/layout/Header";
+import ChatWindow from "./components/chat/ChatWindow";
+import InputBar from "./components/input/InputBar";
+import AnimatedBackground from "./components/background/AnimatedBackground";
+import MainLayout from "./components/layout/MainLayout";
+import { askQuestion, getConversations, getConversation } from "./api/chatbot";
+import Sidebar from "./components/sidebar/Sidebar";
+
 
 function App() {
 
@@ -16,15 +24,53 @@ function App() {
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
+  
   const chatEndRef = useRef(null);
   // One session ID per browser tab
   const sessionId = useRef(crypto.randomUUID());
+  const [conversations, setConversations] = useState([]);
+ 
+  const [sidebarOpen,setSidebarOpen]=useState(true);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({
       behavior: "smooth"
     });
   }, [messages]);
+
+  useEffect(() => {
+    async function loadConversations() {
+      try {
+        const data = await getConversations();
+        setConversations(data);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    loadConversations();
+
+  }, []);
+
+  const loadConversation = async (selectedSessionId) => {
+    try {
+      const history = await getConversation(selectedSessionId);
+
+      console.log(history);
+
+      const normalizedHistory = history.map(msg => ({
+        ...msg,
+        sender: msg.sender === "assistant" ? "bot" : msg.sender
+      }));
+
+      setMessages(normalizedHistory);
+
+      sessionId.current = selectedSessionId;
+
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const startListening = () => {
 
@@ -70,8 +116,19 @@ function App() {
     };
   };
 
+  const startNewChat = () => {
+
+    sessionId.current = crypto.randomUUID();
+
+    setMessages([]);
+
+  };
+
 
   const sendQuestion = async () => {
+    console.log("sendQuestion called");
+    console.log(question);
+
 
     if (!question.trim()) return;
 
@@ -80,28 +137,28 @@ function App() {
       text: question
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    const updatedHistory = [...messages, userMessage];
+    setMessages(updatedHistory);
 
-    const currentQuestion = question;
+    
 
     setQuestion("");
 
     try {
       setLoading(true);
 
-      const response = await axios.post(
-        "http://127.0.0.1:8000/ask",
-        {
-          question: currentQuestion,
-          history: messages,
-          session_id: sessionId.current
-        }
-      );
+    console.log("history:",updatedHistory);
+
+    const response = await askQuestion({
+        question,
+        history: updatedHistory,
+        session_id: sessionId.current,
+    });
 
       const botMessage = {
         sender: "bot",
-        text: response.data.answer,
-        sources: response.data.sources
+        text: response.answer,
+        sources: response.sources
 
       };
       setLoading(false);
@@ -127,110 +184,44 @@ function App() {
   };
 
   return (
-    <div className="container">
+    <>
+      <AnimatedBackground />
 
-      <div className="header">
-        <Bot size={32} />
-        <h1>ResourcePlus AI Assistant</h1>
-      </div>
+      <MainLayout
+        sidebar={
+          <Sidebar
 
-      <div className="chat-window">
+            isOpen={sidebarOpen}
 
+            conversations={conversations}
 
+            onNewChat={startNewChat}
 
-        {messages.map((msg, index) => (
+            onSelectConversation={loadConversation}
 
-          <motion.div
-            key={index}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className={`message ${msg.sender}`}
-          >
-
-            <div className="avatar">
-
-              {msg.sender === "bot"
-                ? <Bot size={18} />
-                : <User size={18} />
-              }
-
-            </div>
-
-            <div className="message-content">
-
-              <ReactMarkdown>
-                {msg.text}
-              </ReactMarkdown>
-
-              {msg.sources && msg.sources.length > 0 && (
-
-                <div className="sources">
-
-                  <strong>Sources</strong>
-
-                  <ul>
-                    {msg.sources.map((source, i) => (
-                      <li key={i}>{source}</li>
-                    ))}
-                  </ul>
-
-                </div>
-
-              )}
-
-            </div>
-
-          </motion.div>
-
-        ))}
-
-
-
-        {loading && (
-          <div className="bot">
-            Thinking...
-          </div>
-        )}
-
-      </div>
-      {listening && (
-        <div>
-          Listening...
-        </div>
-      )}
-
-      <div className="input-area">
-
-        <input
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              sendQuestion();
-            }
-          }}
-          placeholder="Ask a question..."
+          />
+        }
+      >
+        <Header
+          toggleSidebar={() =>
+            setSidebarOpen(!sidebarOpen)
+          }
         />
 
-        <button
-          className="icon-btn"
-          onClick={startListening}
-        >
-          <Mic size={18} />
-        </button>
+        <ChatWindow
+          messages={messages}
+          loading={loading}
+          chatEndRef={chatEndRef}
+        />
 
-        <button
-          className="icon-btn send"
-          onClick={sendQuestion}
-        >
-          <Send size={18} />
-        </button>
-
-
-      </div>
-
-    </div>
+        <InputBar
+          question={question}
+          setQuestion={setQuestion}
+          sendQuestion={sendQuestion}
+          startListening={startListening}
+        />
+      </MainLayout>
+    </>
   );
 }
 

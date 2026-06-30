@@ -10,6 +10,7 @@ from backend.database.chat_history import (
     save_message,
     get_history
 )
+from backend.api.title_generator import generate_title
 
 load_dotenv()
 #----------------------------------------------
@@ -65,6 +66,14 @@ def ask_resourceplus(question, history=[],session_id="default"):
     )
 
     print("\nQUESTION:", question)
+    print("\n===== HISTORY DEBUG =====")
+    print(type(selected_history))
+    print(selected_history)
+
+    if selected_history:
+        print(type(selected_history[0]))
+
+    print("=========================\n")
 
     search_query = build_search_query(
         question,
@@ -184,6 +193,12 @@ def ask_resourceplus(question, history=[],session_id="default"):
         )
 
         answer = response.choices[0].message.content.strip()
+        history = get_history(session_id)
+
+        title = None
+
+        if len(history) == 0:
+            title = generate_title(question)
      
     except Exception as e:
 
@@ -196,6 +211,12 @@ def ask_resourceplus(question, history=[],session_id="default"):
             "Please try again later."
         )
     
+    save_message(
+        session_id=session_id,
+        sender="user",
+        text=question,
+        title=title
+    )
     save_message(
         session_id=session_id,
         sender="assistant",

@@ -22,3 +22,30 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Database
+*.db
+
+# Environment
+.env
+
+# Node
+node_modules/
+
+# Build
+dist/
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+# Python
+__pycache__/
+*.py[cod]
+backend/rag/chroma_db/

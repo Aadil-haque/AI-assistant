@@ -14,3 +14,10 @@ backend/rag/chroma_db/
 
 # Python virtual env
 venv/
+
+backend/database/chat_history.db
+
+# Python
+__pycache__/
+*.py[cod]
+backend/rag/chroma_db/

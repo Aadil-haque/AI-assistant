@@ -1,0 +1,153 @@
+.sidebar{
+    width:200px;
+    flex-shrink:0;
+
+    box-sizing:border-box;
+
+    display:flex;
+    flex-direction:column;
+
+    padding:18px;
+
+    background:rgba(15,23,42,.35);
+
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:24px;
+
+    backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
+
+    transition:.35s;
+    box-shadow: 0 12px 35px rgba(0,0,0,.30);
+              
+}
+.sidebar.closed{
+
+    width:0;
+
+    padding:0;
+
+    opacity:0;
+
+    overflow:hidden;
+
+}
+/* ---------- New Chat ---------- */
+
+.new-chat-btn{
+    width:100%;
+    border:none;
+    border-radius:16px;
+
+    padding:14px;
+
+    background:#2563eb;
+    color:white;
+
+    font-size:15px;
+    font-weight:600;
+
+    cursor:pointer;
+
+    transition:.25s;
+}
+
+.new-chat-btn:hover{
+    background:#3b82f6;
+}
+
+/* ---------- Conversation List ---------- */
+
+.conversation-list{
+    margin-top:16px;
+
+    flex:1;
+
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    overflow-y:auto;
+
+    min-height:0;
+
+    padding-right:4px;
+    padding-left: 4px;
+
+    
+}
+
+/* ---------- Conversation ---------- */
+
+.conversation-item{
+    width:100%;
+    flex-shrink: 0;
+
+    border:none;
+    border-radius:14px;
+
+    background:rgba(255,255,255,.05);
+
+
+
+    color:#e6e6ef;
+
+    padding:10px 1px;
+
+    text-align:left;
+
+    cursor:pointer;
+
+    transition:
+        transform .2s,
+        background .2s;
+
+        height:60px;
+    padding:0 6px;
+
+    display:flex;
+    align-items:center;
+    gap:4px;
+    font-size:14px;
+    font-weight:490;
+
+
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+    
+    
+    
+}
+
+.conversation-item:hover{
+    background:rgba(255,255,255,.12);
+    transform: scale(1.05);
+}
+.conversation-item span{
+    flex:1;
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+}
+
+.conversation-icon{
+    flex-shrink:0;
+    color:#8fa2ff;
+}
+
+.conversation-list::-webkit-scrollbar{
+    width:6px;
+}
+
+.conversation-list::-webkit-scrollbar-track{
+    background:transparent;
+}
+
+.conversation-list::-webkit-scrollbar-thumb{
+    background:rgba(255,255,255,.18);
+    border-radius:999px;
+}
+
+.conversation-list::-webkit-scrollbar-thumb:hover{
+    background:rgba(255,255,255,.35);
+}

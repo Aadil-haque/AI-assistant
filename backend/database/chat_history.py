@@ -5,7 +5,7 @@ from backend.database.models import Message
 from .models import Conversation
 
 
-def save_message(session_id, sender, text):
+def save_message(session_id, sender, text,title=None):
     db: Session = SessionLocal()
 
     try:
@@ -17,17 +17,9 @@ def save_message(session_id, sender, text):
 
         if conversation is None:
 
-            # Only use the FIRST USER message as the title
-            title = text.strip()
-
-            title = title.replace("\n", " ")
-
-            if len(title) > 60:
-                title = title[:60] + "..."
-
             conversation = Conversation(
                 session_id=session_id,
-                title=title
+                title=title or "New Chat"
             )
 
             db.add(conversation)
